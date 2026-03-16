@@ -97,7 +97,7 @@ RUN curl -fsSL https://github.com/erlang/rebar3/releases/download/3.24.0/rebar3 
 	chmod +x /usr/local/bin/rebar3
 
 COPY fluxer_gateway/rebar.config fluxer_gateway/rebar.lock* ./
-RUN rebar3 compile --deps_only
+RUN git config --global http.version HTTP/1.1 && rebar3 compile --deps_only
 
 COPY fluxer_gateway/. ./fluxer_gateway
 RUN LOGGER_LEVEL=${LOGGER_LEVEL} envsubst '${LOGGER_LEVEL}' < fluxer_gateway/config/vm.args.template > fluxer_gateway/config/vm.args && \
@@ -105,6 +105,12 @@ RUN LOGGER_LEVEL=${LOGGER_LEVEL} envsubst '${LOGGER_LEVEL}' < fluxer_gateway/con
 	(cd fluxer_gateway && rebar3 as prod release)
 
 FROM deps AS app-build
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal && \
+	. $HOME/.cargo/env && \
+	curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 COPY tsconfigs /usr/src/app/tsconfigs
 
