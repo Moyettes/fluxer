@@ -84,20 +84,18 @@ COPY fluxer_relay_directory/package.json ./fluxer_relay_directory/
 # Resolve catalog: references in pnpm overrides to their actual versions from
 # pnpm-workspace.yaml, since pnpm --frozen-lockfile compares raw override values
 # against the resolved versions stored in the lockfile.
-RUN <<'RESOLVE_OVERRIDES'
-node -e '
+RUN node << 'RESOLVE_OVERRIDES'
 const fs = require("fs");
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 const ws = fs.readFileSync("pnpm-workspace.yaml", "utf8");
 for (const [k, v] of Object.entries(pkg.pnpm?.overrides || {})) {
   if (v === "catalog:") {
     const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = ws.match(new RegExp(escaped + ":\\s*(.+)"));
+    const match = ws.match(new RegExp("['\"]?" + escaped + "['\"]?:\\s*(.+)"));
     if (match) pkg.pnpm.overrides[k] = match[1].trim();
   }
 }
 fs.writeFileSync("package.json", JSON.stringify(pkg, null, "\t") + "\n");
-'
 RESOLVE_OVERRIDES
 
 RUN pnpm install --frozen-lockfile
