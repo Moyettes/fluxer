@@ -11,7 +11,7 @@ description: 'Keep your Fluxer instance updated.'
 
 ### Quick backup
 
-From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
+From your instance directory:
 
 <Tabs>
   <Tab title="Linux / macOS">
@@ -19,6 +19,7 @@ From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
     # Backup the SQLite database
     docker compose exec fluxer_server \
       sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+    mkdir -p backups
     docker compose cp fluxer_server:/tmp/backup.db ./backups/fluxer-$(date +%Y%m%d).db
 
     # Backup config
@@ -41,7 +42,7 @@ From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
 
 ## Upgrading
 
-From your Fluxer directory:
+From your instance directory:
 
 ```bash
 # Pull the latest images
@@ -156,37 +157,31 @@ docker run -d \
 
 <Tabs>
   <Tab title="Linux / macOS (cron)">
-    Set up a cron job for regular backups:
-
-    ```bash
-    # /etc/cron.d/fluxer-backup
-    # Run daily at 3 AM
-    0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
-    ```
-
-    Example `backup.sh`:
+    Create a `backup.sh` script in your instance directory:
 
     ```bash
     #!/bin/bash
     set -euo pipefail
 
-    BACKUP_DIR=/opt/fluxer/backups
+    # Change this to your instance directory
+    FLUXER_DIR="$(cd "$(dirname "$0")" && pwd)"
+    BACKUP_DIR="$FLUXER_DIR/backups"
     DATE=$(date +%Y%m%d)
 
     mkdir -p "$BACKUP_DIR"
 
     # SQLite backup
-    docker compose -f /opt/fluxer/compose.yaml exec -T fluxer_server \
+    docker compose -f "$FLUXER_DIR/compose.yaml" exec -T fluxer_server \
       sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
-    docker compose -f /opt/fluxer/compose.yaml cp fluxer_server:/tmp/backup.db "$BACKUP_DIR/fluxer-$DATE.db"
+    docker compose -f "$FLUXER_DIR/compose.yaml" cp fluxer_server:/tmp/backup.db "$BACKUP_DIR/fluxer-$DATE.db"
 
     # Valkey backup
-    docker compose -f /opt/fluxer/compose.yaml exec -T valkey valkey-cli BGSAVE
+    docker compose -f "$FLUXER_DIR/compose.yaml" exec -T valkey valkey-cli BGSAVE
     sleep 2
-    docker compose -f /opt/fluxer/compose.yaml cp valkey:/data/dump.rdb "$BACKUP_DIR/valkey-$DATE.rdb"
+    docker compose -f "$FLUXER_DIR/compose.yaml" cp valkey:/data/dump.rdb "$BACKUP_DIR/valkey-$DATE.rdb"
 
     # Config backup
-    cp -r /opt/fluxer/config "$BACKUP_DIR/config-$DATE"
+    cp -r "$FLUXER_DIR/config" "$BACKUP_DIR/config-$DATE"
 
     # Clean up backups older than 30 days
     find "$BACKUP_DIR" -type f -mtime +30 -delete
@@ -194,30 +189,39 @@ docker run -d \
 
     echo "Backup completed: $DATE"
     ```
+
+    Schedule with cron (replace the path with your actual instance directory):
+
+    ```bash
+    # crontab -e
+    0 3 * * * /path/to/your/instance/backup.sh >> /var/log/fluxer-backup.log 2>&1
+    ```
   </Tab>
   <Tab title="Windows (Task Scheduler)">
-    Create a `backup.ps1` script in your Fluxer directory (e.g. `C:\fluxer\backup.ps1`):
+    Create a `backup.ps1` script in your instance directory:
 
     ```powershell
     $ErrorActionPreference = "Stop"
 
-    $BackupDir = "C:\fluxer\backups"
+    # Automatically resolves to the directory containing this script
+    $FluxerDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    $BackupDir = Join-Path $FluxerDir "backups"
     $Date = Get-Date -Format "yyyyMMdd"
 
     New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
 
     # SQLite backup
-    docker compose -f C:\fluxer\compose.yaml exec -T fluxer_server `
+    docker compose -f (Join-Path $FluxerDir "compose.yaml") exec -T fluxer_server `
       sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
-    docker compose -f C:\fluxer\compose.yaml cp fluxer_server:/tmp/backup.db "$BackupDir\fluxer-$Date.db"
+    docker compose -f (Join-Path $FluxerDir "compose.yaml") cp fluxer_server:/tmp/backup.db "$BackupDir\fluxer-$Date.db"
 
     # Valkey backup
-    docker compose -f C:\fluxer\compose.yaml exec -T valkey valkey-cli BGSAVE
+    docker compose -f (Join-Path $FluxerDir "compose.yaml") exec -T valkey valkey-cli BGSAVE
     Start-Sleep -Seconds 2
-    docker compose -f C:\fluxer\compose.yaml cp valkey:/data/dump.rdb "$BackupDir\valkey-$Date.rdb"
+    docker compose -f (Join-Path $FluxerDir "compose.yaml") cp valkey:/data/dump.rdb "$BackupDir\valkey-$Date.rdb"
 
     # Config backup
-    Copy-Item -Recurse C:\fluxer\config "$BackupDir\config-$Date"
+    Copy-Item -Recurse (Join-Path $FluxerDir "config") "$BackupDir\config-$Date"
 
     # Clean up backups older than 30 days
     Get-ChildItem $BackupDir -Recurse | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Force -Recurse
@@ -225,11 +229,11 @@ docker run -d \
     Write-Output "Backup completed: $Date"
     ```
 
-    Schedule it with Task Scheduler:
+    Schedule it with Task Scheduler (replace the path with your actual script location):
 
     ```powershell
     # Run as Administrator
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File C:\fluxer\backup.ps1"
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File `"$PWD\backup.ps1`""
     $trigger = New-ScheduledTaskTrigger -Daily -At 3am
     Register-ScheduledTask -TaskName "FluxerBackup" -Action $action -Trigger $trigger -RunLevel Highest
     ```

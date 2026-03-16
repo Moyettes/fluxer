@@ -100,24 +100,24 @@ git clone https://github.com/fluxerapp/fluxer.git
 cd fluxer
 
 # Create your instance directory with the needed files
-mkdir -p /opt/fluxer/config
-cp compose.yaml /opt/fluxer/
-cp config/config.production.template.json /opt/fluxer/config/config.json
-cd /opt/fluxer
+mkdir -p instance/config
+cp compose.yaml instance/
+cp config/config.production.template.json instance/config/config.json
+cd instance
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-# Clone the repository
+# Clone the repository (run from any folder you like)
 git clone https://github.com/fluxerapp/fluxer.git
 cd fluxer
 
 # Create your instance directory with the needed files
-New-Item -ItemType Directory -Force -Path C:\fluxer\config
-Copy-Item compose.yaml C:\fluxer\
-Copy-Item config\config.production.template.json C:\fluxer\config\config.json
-cd C:\fluxer
+New-Item -ItemType Directory -Force -Path instance\config
+Copy-Item compose.yaml instance\
+Copy-Item config\config.production.template.json instance\config\config.json
+cd instance
 ```
 
 ### Step 2: Generate secrets
@@ -221,7 +221,7 @@ Edit the config file with your domain and secrets:
 
 **Option A: Caddy (recommended — automatic TLS)**
 
-Create a `Caddyfile` in your Fluxer directory (`/opt/fluxer/Caddyfile` on Linux, `C:\fluxer\Caddyfile` on Windows):
+Create a `Caddyfile` in your instance directory:
 
 ```
 chat.example.com {
@@ -256,7 +256,7 @@ server {
 
 ### Step 5: Start the services
 
-Navigate to your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
+From your instance directory:
 
 **Linux / macOS:**
 
@@ -480,13 +480,13 @@ docker run --rm -v fluxer_fluxer_data:/data -v $(pwd)/backups:/backup \
 
 ```bash
 # /etc/cron.d/fluxer-backup
-0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
+0 3 * * * root /path/to/your/instance/backup.sh >> /var/log/fluxer-backup.log 2>&1
 ```
 
-**Windows (Task Scheduler, run as Administrator in PowerShell):**
+**Windows (Task Scheduler, run as Administrator in PowerShell from your instance directory):**
 
 ```powershell
-$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File C:\fluxer\backup.ps1"
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File `"$PWD\backup.ps1`""
 $trigger = New-ScheduledTaskTrigger -Daily -At 3am
 Register-ScheduledTask -TaskName "FluxerBackup" -Action $action -Trigger $trigger -RunLevel Highest
 ```
@@ -495,7 +495,7 @@ Register-ScheduledTask -TaskName "FluxerBackup" -Action $action -Trigger $trigge
 
 ## 8. Upgrading
 
-From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
+From your instance directory:
 
 ```bash
 # Pull latest images

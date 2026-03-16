@@ -13,31 +13,29 @@ This guide gets a Fluxer instance running with Docker Compose. You'll have a wor
 
 ## Step 1: Set up the project directory
 
+Clone the repository and set up your instance directory. You can do this from any folder you like:
+
 <Tabs>
   <Tab title="Linux / macOS">
     ```bash
-    # Clone the repository
     git clone https://github.com/fluxerapp/fluxer.git
     cd fluxer
 
-    # Create your instance directory with the needed files
-    mkdir -p /opt/fluxer/config
-    cp compose.yaml /opt/fluxer/
-    cp config/config.production.template.json /opt/fluxer/config/config.json
-    cd /opt/fluxer
+    mkdir -p instance/config
+    cp compose.yaml instance/
+    cp config/config.production.template.json instance/config/config.json
+    cd instance
     ```
   </Tab>
   <Tab title="Windows (PowerShell)">
     ```powershell
-    # Clone the repository
     git clone https://github.com/fluxerapp/fluxer.git
     cd fluxer
 
-    # Create your instance directory with the needed files
-    New-Item -ItemType Directory -Force -Path C:\fluxer\config
-    Copy-Item compose.yaml C:\fluxer\
-    Copy-Item config\config.production.template.json C:\fluxer\config\config.json
-    cd C:\fluxer
+    New-Item -ItemType Directory -Force -Path instance\config
+    Copy-Item compose.yaml instance\
+    Copy-Item config\config.production.template.json instance\config\config.json
+    cd instance
     ```
 
     <Note>
@@ -45,6 +43,8 @@ This guide gets a Fluxer instance running with Docker Compose. You'll have a wor
     </Note>
   </Tab>
 </Tabs>
+
+All remaining commands in this guide assume you're in the `instance` directory.
 
 ## Step 2: Generate secrets
 
@@ -147,7 +147,7 @@ WebSocket support is required for the real-time gateway.
   <Tab title="Caddy (recommended)">
     Caddy handles TLS automatically via Let's Encrypt.
 
-    Create a `Caddyfile` in your Fluxer directory (`/opt/fluxer/Caddyfile` on Linux, `C:\fluxer\Caddyfile` on Windows):
+    Create a `Caddyfile` in your instance directory:
 
     ```
     chat.example.com {
@@ -186,7 +186,7 @@ WebSocket support is required for the real-time gateway.
 
 ## Step 5: Start the services
 
-Navigate to your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows) and run:
+From your instance directory, run:
 
 <Tabs>
   <Tab title="Linux / macOS">
