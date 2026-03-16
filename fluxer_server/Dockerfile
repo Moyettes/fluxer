@@ -106,7 +106,8 @@ RUN LOGGER_LEVEL=${LOGGER_LEVEL} envsubst '${LOGGER_LEVEL}' < fluxer_gateway/con
 
 FROM deps AS app-build
 
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal && \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/* && \
+	curl https://sh.rustup.rs -sSf | sh -s -- -y --profile minimal && \
 	. $HOME/.cargo/env && \
 	curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
