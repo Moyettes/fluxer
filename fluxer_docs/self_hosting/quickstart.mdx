@@ -46,7 +46,25 @@ Clone the repository and set up your instance directory. You can do this from an
 
 All remaining commands in this guide assume you're in the `instance` directory.
 
-## Step 2: Generate secrets
+## Step 2: Build the server image
+
+The Fluxer server image needs to be built locally from the repository. From the **repository root** (one directory up from `instance`):
+
+```bash
+docker build -t fluxer-server -f fluxer_server/Dockerfile .
+```
+
+<Note>
+  This build compiles both the Node.js backend and the Erlang gateway, so it may take several minutes on the first run. Subsequent builds use Docker's layer cache and are much faster.
+</Note>
+
+Then set the image name so Docker Compose uses your local build. Create a `.env` file in your `instance` directory:
+
+```
+FLUXER_SERVER_IMAGE=fluxer-server
+```
+
+## Step 3: Generate secrets
 
 You'll need several 64-character hex secrets.
 
@@ -73,7 +91,7 @@ For web push notifications, generate VAPID keys:
 npx web-push generate-vapid-keys
 ```
 
-## Step 3: Edit config/config.json
+## Step 4: Edit config/config.json
 
 Replace all placeholder values in your config file:
 
@@ -139,7 +157,7 @@ Replace all placeholder values in your config file:
   Use a unique, randomly generated value for **every** secret field. Never reuse secrets across fields.
 </Warning>
 
-## Step 4: Set up a reverse proxy
+## Step 5: Set up a reverse proxy
 
 WebSocket support is required for the real-time gateway.
 
@@ -184,7 +202,7 @@ WebSocket support is required for the real-time gateway.
   </Tab>
 </Tabs>
 
-## Step 5: Start the services
+## Step 6: Start the services
 
 From your instance directory, run:
 
@@ -221,7 +239,7 @@ From your instance directory, run:
   </Tab>
 </Tabs>
 
-## Step 6: Verify
+## Step 7: Verify
 
 ```bash
 # Check all containers are healthy

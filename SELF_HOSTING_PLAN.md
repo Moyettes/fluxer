@@ -120,7 +120,23 @@ Copy-Item config\config.production.template.json instance\config\config.json
 cd instance
 ```
 
-### Step 2: Generate secrets
+### Step 2: Build the server image
+
+The Fluxer server image needs to be built locally from the repository. From the **repository root** (one directory up from `instance`):
+
+```bash
+docker build -t fluxer-server -f fluxer_server/Dockerfile .
+```
+
+> **Note:** This compiles both the Node.js backend and Erlang gateway, so it may take several minutes on the first run.
+
+Then create a `.env` file in your `instance` directory so Docker Compose uses your local build:
+
+```
+FLUXER_SERVER_IMAGE=fluxer-server
+```
+
+### Step 3: Generate secrets
 
 Generate all required secrets before editing config:
 
@@ -157,7 +173,7 @@ You'll need secrets for:
 - `auth.connection_initiation_secret`
 - `auth.vapid.public_key` / `auth.vapid.private_key`
 
-### Step 3: Configure `config/config.json`
+### Step 4: Configure `config/config.json`
 
 Edit the config file with your domain and secrets:
 
@@ -217,7 +233,7 @@ Edit the config file with your domain and secrets:
 }
 ```
 
-### Step 4: Set up the reverse proxy
+### Step 5: Set up the reverse proxy
 
 **Option A: Caddy (recommended — automatic TLS)**
 
@@ -254,7 +270,7 @@ server {
 
 > **Important:** WebSocket support (`Upgrade` / `Connection` headers) is required for the real-time gateway.
 
-### Step 5: Start the services
+### Step 6: Start the services
 
 From your instance directory:
 
@@ -290,7 +306,7 @@ docker compose --profile voice up -d
 $env:MEILI_MASTER_KEY="<your-key>"; docker compose --profile search --profile voice up -d
 ```
 
-### Step 6: Verify the deployment
+### Step 7: Verify the deployment
 
 ```bash
 # Check service health
