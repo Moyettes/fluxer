@@ -53,8 +53,33 @@ COPY packages/virus_scan/package.json ./packages/virus_scan/
 COPY packages/worker/package.json ./packages/worker/
 COPY packages/http_client/package.json ./packages/http_client/
 COPY packages/schema/package.json ./packages/schema/
+COPY packages/app_proxy/package.json ./packages/app_proxy/
+COPY packages/date_utils/package.json ./packages/date_utils/
+COPY packages/elasticsearch_search/package.json ./packages/elasticsearch_search/
+COPY packages/geo_utils/package.json ./packages/geo_utils/
+COPY packages/geoip/package.json ./packages/geoip/
+COPY packages/i18n/package.json ./packages/i18n/
+COPY packages/kv_client/package.json ./packages/kv_client/
+COPY packages/limits/package.json ./packages/limits/
+COPY packages/list_utils/package.json ./packages/list_utils/
+COPY packages/locale/package.json ./packages/locale/
+COPY packages/markdown_parser/package.json ./packages/markdown_parser/
+COPY packages/media_proxy_utils/package.json ./packages/media_proxy_utils/
+COPY packages/meilisearch_search/package.json ./packages/meilisearch_search/
+COPY packages/mime_utils/package.json ./packages/mime_utils/
+COPY packages/nats/package.json ./packages/nats/
+COPY packages/number_utils/package.json ./packages/number_utils/
+COPY packages/openapi/package.json ./packages/openapi/
+COPY packages/time/package.json ./packages/time/
 COPY fluxer_server/package.json ./fluxer_server/
 COPY fluxer_app/package.json ./fluxer_app/
+COPY fluxer_admin/package.json ./fluxer_admin/
+COPY fluxer_api/package.json ./fluxer_api/
+COPY fluxer_app_proxy/package.json ./fluxer_app_proxy/
+COPY fluxer_integration/package.json ./fluxer_integration/
+COPY fluxer_marketing/package.json ./fluxer_marketing/
+COPY fluxer_media_proxy/package.json ./fluxer_media_proxy/
+COPY fluxer_relay_directory/package.json ./fluxer_relay_directory/
 
 RUN pnpm install --frozen-lockfile
 
