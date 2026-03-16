@@ -3,4 +3,70 @@ title: 'Overview'
 description: 'Run your own Fluxer instance.'
 ---
 
-TBD
+Fluxer is designed from the ground up to be self-hostable. You get full control over your data, your users, and your infrastructure — with no vendor lock-in.
+
+## What you get
+
+A self-hosted Fluxer instance includes:
+
+- **Real-time messaging** with typing indicators, reactions, and threads
+- **Voice & video calls** with screen sharing (via LiveKit)
+- **Rich media** with link previews, image/video attachments, and GIF search
+- **Communities and channels** organized into categories
+- **Custom expressions** (emojis and stickers)
+- **Admin dashboard** for managing your instance
+- **Full API access** for building bots and integrations
+
+## How it works
+
+Fluxer ships a **unified Docker container** (`fluxer_server`) that bundles all backend services into a single image:
+
+| Component | Description |
+|-----------|-------------|
+| API Server | REST API and business logic (Hono/Node.js) |
+| Gateway | Real-time WebSocket connections (Erlang/OTP) |
+| Media Proxy | Image/video processing and caching |
+| Admin Panel | Instance management dashboard |
+| Web Client | Pre-built React frontend |
+| Marketing Site | Optional landing page |
+
+The minimum deployment is **two containers**: `fluxer_server` + `valkey` (cache).
+
+## Database options
+
+| Backend | Best for | Notes |
+|---------|----------|-------|
+| **SQLite** (default) | Small to medium instances | Zero config, single file, no extra services |
+| **Cassandra** | Large or distributed instances | Requires a separate cluster |
+
+## Optional services
+
+| Service | Purpose | When to enable |
+|---------|---------|----------------|
+| **Meilisearch** | Full-text search | When you want message/user/community search |
+| **Elasticsearch** | Alternative search backend | For advanced search needs |
+| **LiveKit** | Voice & video calls | When you want VoIP features |
+
+## Requirements
+
+- **Docker** 24+ and **Docker Compose** v2
+- A domain name with DNS control
+- A reverse proxy with TLS (Caddy, nginx, or Traefik)
+- 2+ CPU cores, 2+ GB RAM, 10+ GB disk
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/self_hosting/quickstart">
+    Get Fluxer running in minutes.
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/self_hosting/architecture">
+    Understand how the pieces fit together.
+  </Card>
+  <Card title="Configuration" icon="gear" href="/self_hosting/configuration">
+    Full config.json reference.
+  </Card>
+  <Card title="Voice setup" icon="phone" href="/self_hosting/voice">
+    Enable voice & video with LiveKit.
+  </Card>
+</CardGroup>

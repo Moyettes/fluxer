@@ -3,4 +3,140 @@ title: 'Upgrading'
 description: 'Keep your Fluxer instance updated.'
 ---
 
-TBD
+## Before you upgrade
+
+1. **Back up your data** — database, config, and media files
+2. **Read the release notes** — check for breaking changes or migration steps
+3. **Test on staging first** if possible, especially for major version bumps
+
+### Quick backup
+
+```bash
+cd /opt/fluxer
+
+# Backup the SQLite database
+docker compose exec fluxer_server \
+  sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+docker compose cp fluxer_server:/tmp/backup.db ./backups/fluxer-$(date +%Y%m%d).db
+
+# Backup config
+cp -r config/ backups/config-$(date +%Y%m%d)/
+```
+
+## Upgrading
+
+```bash
+cd /opt/fluxer
+
+# Pull the latest images
+docker compose pull
+
+# Restart with new images (minimal downtime)
+docker compose up -d
+
+# Verify everything is healthy
+docker compose ps
+curl -s http://localhost:8080/_health
+```
+
+Database migrations run automatically on startup when needed.
+
+## Release channels
+
+| Channel | Image tag | Description |
+|---------|-----------|-------------|
+| **Stable** | `stable` | Recommended for production. Tested and validated releases. |
+| **Nightly** | `nightly` | Latest changes from the `canary` branch. May contain bugs. |
+
+The default compose file uses `stable`:
+
+```yaml
+image: ${FLUXER_SERVER_IMAGE:-ghcr.io/fluxerapp/fluxer-server:stable}
+```
+
+To use nightly builds, set the environment variable:
+
+```bash
+FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:nightly docker compose up -d
+```
+
+## Pinning to a specific version
+
+For maximum control, pin to a specific build number:
+
+```bash
+FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:build-123 docker compose up -d
+```
+
+## Rolling back
+
+If an upgrade causes issues:
+
+```bash
+# Stop the current version
+docker compose down
+
+# Restore your database backup
+cp backups/fluxer-YYYYMMDD.db data/fluxer.db
+
+# Start with the previous image
+FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:previous-tag docker compose up -d
+```
+
+## Automating updates
+
+You can use [Watchtower](https://containrrr.dev/watchtower/) to automatically pull and restart containers when new images are available:
+
+```bash
+docker run -d \
+  --name watchtower \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  containrrr/watchtower \
+  --interval 86400 \
+  fluxer_server valkey
+```
+
+<Warning>
+  Automatic updates are convenient but risky for production. Consider using Watchtower's notification-only mode (`--monitor-only`) and upgrading manually after reviewing changes.
+</Warning>
+
+## Backup automation
+
+Set up a cron job for regular backups:
+
+```bash
+# /etc/cron.d/fluxer-backup
+# Run daily at 3 AM
+0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
+```
+
+Example `backup.sh`:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+BACKUP_DIR=/opt/fluxer/backups
+DATE=$(date +%Y%m%d)
+
+mkdir -p "$BACKUP_DIR"
+
+# SQLite backup
+docker compose -f /opt/fluxer/compose.yaml exec -T fluxer_server \
+  sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+docker compose -f /opt/fluxer/compose.yaml cp fluxer_server:/tmp/backup.db "$BACKUP_DIR/fluxer-$DATE.db"
+
+# Valkey backup
+docker compose -f /opt/fluxer/compose.yaml exec -T valkey valkey-cli BGSAVE
+sleep 2
+docker compose -f /opt/fluxer/compose.yaml cp valkey:/data/dump.rdb "$BACKUP_DIR/valkey-$DATE.rdb"
+
+# Config backup
+cp -r /opt/fluxer/config "$BACKUP_DIR/config-$DATE"
+
+# Clean up backups older than 30 days
+find "$BACKUP_DIR" -type f -mtime +30 -delete
+find "$BACKUP_DIR" -type d -empty -mtime +30 -delete
+
+echo "Backup completed: $DATE"
+```

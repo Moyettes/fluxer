@@ -3,4 +3,138 @@ title: 'Voice setup'
 description: 'Configure voice chat with LiveKit.'
 ---
 
-TBD
+Fluxer uses [LiveKit](https://livekit.io/) as its WebRTC SFU (Selective Forwarding Unit) for voice calls, video calls, and screen sharing. This guide walks through enabling voice on your self-hosted instance.
+
+## Prerequisites
+
+- A working Fluxer instance (see [Quickstart](/self_hosting/quickstart))
+- Ports 3478/udp, 7881/tcp, and 50000-50100/udp available on your host
+
+## Step 1: Generate LiveKit keys
+
+Generate an API key and secret for LiveKit:
+
+```bash
+# API key (short identifier)
+openssl rand -hex 8
+
+# API secret (longer secret)
+openssl rand -hex 32
+```
+
+## Step 2: Create livekit.yaml
+
+Create the LiveKit configuration file at `config/livekit.yaml`:
+
+```yaml
+port: 7880
+
+keys:
+  'your-api-key': 'your-api-secret'
+
+rtc:
+  tcp_port: 7881
+
+turn:
+  enabled: true
+  udp_port: 3478
+
+room:
+  auto_create: true
+  max_participants: 100
+  empty_timeout: 300
+```
+
+Replace `your-api-key` and `your-api-secret` with the values you generated.
+
+## Step 3: Add voice config to config.json
+
+Add the `voice` section under `integrations` in your `config/config.json`:
+
+```json
+{
+  "integrations": {
+    "voice": {
+      "enabled": true,
+      "api_key": "your-api-key",
+      "api_secret": "your-api-secret",
+      "url": "ws://livekit:7880",
+      "webhook_url": "http://fluxer_server:8080/api/webhooks/livekit",
+      "default_region": {
+        "id": "default",
+        "name": "Default",
+        "emoji": "🌐",
+        "latitude": 0.0,
+        "longitude": 0.0
+      }
+    }
+  }
+}
+```
+
+<Warning>
+  The `api_key` and `api_secret` must match the values in your `livekit.yaml` exactly.
+</Warning>
+
+## Step 4: Open firewall ports
+
+LiveKit requires several ports for media transport:
+
+```bash
+# TURN server (NAT traversal)
+sudo ufw allow 3478/udp
+
+# ICE-TCP fallback (for restrictive networks)
+sudo ufw allow 7881/tcp
+
+# RTP media ports
+sudo ufw allow 50000:50100/udp
+```
+
+| Port | Protocol | Purpose |
+|------|----------|---------|
+| 3478 | UDP | TURN server for NAT traversal |
+| 7881 | TCP | ICE-TCP fallback for clients behind strict firewalls |
+| 50000-50100 | UDP | RTP/RTCP media streams |
+
+<Note>
+  The LiveKit API port (7880) should **not** be exposed publicly. It's only accessed internally by `fluxer_server`.
+</Note>
+
+## Step 5: Start with the voice profile
+
+```bash
+cd /opt/fluxer
+docker compose --profile voice up -d
+```
+
+Or if you're also using search:
+
+```bash
+MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
+```
+
+## Step 6: Verify
+
+1. Check that the LiveKit container is healthy: `docker compose ps livekit`
+2. Open your Fluxer instance and join a voice channel
+3. Check logs if something isn't working: `docker compose logs livekit`
+
+## Troubleshooting
+
+### Users can't connect to voice
+
+- Ensure ports 3478/udp, 7881/tcp, and 50000-50100/udp are open on your firewall
+- If behind a NAT, ensure these ports are forwarded to your host
+- Check that the TURN server is enabled in `livekit.yaml`
+
+### Voice connects but no audio
+
+- Verify the RTP port range (50000-50100/udp) is open and not blocked by your cloud provider's security group
+- Some cloud providers (AWS, GCP) require explicit security group rules for UDP ranges
+
+### High latency or poor quality
+
+- Ensure your server has sufficient bandwidth (1 Gbps recommended for many concurrent calls)
+- Consider running LiveKit on a server geographically close to your users
+- Increase the RTP port range if you expect many concurrent calls (each participant uses ~2 ports)

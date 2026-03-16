@@ -3,4 +3,167 @@ title: 'Architecture'
 description: 'Understanding Fluxer service components.'
 ---
 
-TBD
+## High-level overview
+
+```
+                    ┌─────────────────┐
+                    │  Reverse Proxy  │
+                    │  (Caddy/nginx)  │
+                    │  :443 TLS       │
+                    └────────┬────────┘
+                             │
+                    ┌────────▼────────┐
+                    │  fluxer_server  │   ← Unified container
+                    │  :8080          │
+                    │                 │
+                    │  ┌─ API Server  │
+                    │  ├─ Gateway (WS)│
+                    │  ├─ Media Proxy │
+                    │  ├─ Admin Panel │
+                    │  ├─ Web Client  │
+                    │  └─ Marketing   │
+                    └──┬──────────┬───┘
+                       │          │
+              ┌────────▼──┐  ┌───▼──────────┐
+              │  Valkey    │  │  Meilisearch  │  (optional)
+              │  :6379     │  │  :7700        │
+              └───────────┘  └──────────────┘
+
+              ┌─────────────┐
+              │  LiveKit    │  (optional, for voice/video)
+              │  :7880      │
+              └─────────────┘
+```
+
+## Core services
+
+### fluxer_server
+
+The unified container (`ghcr.io/fluxerapp/fluxer-server:stable`) bundles multiple services:
+
+| Component | Language | Framework | Role |
+|-----------|----------|-----------|------|
+| API Server | TypeScript | Hono on Node.js | HTTP REST API, business logic, authentication |
+| Gateway | Erlang/OTP | Custom | WebSocket connections for real-time events (messages, presence, typing) |
+| Media Proxy | TypeScript | Hono | Image resizing, caching, link preview generation |
+| Admin Panel | TypeScript/React | Hono + React | Instance administration UI |
+| Web Client | TypeScript/React | React + Rspack | Pre-built frontend served as static files |
+| Marketing | TypeScript/React | Hono + React | Optional landing page |
+
+All components run inside the same container and communicate internally. The API server listens on port **8080** and routes requests to the appropriate component.
+
+### Valkey
+
+[Valkey](https://valkey.io/) (Redis-compatible) is the only required external service. It handles:
+
+- **Session storage** — user sessions and auth tokens
+- **Pub/sub** — real-time event distribution between server and gateway
+- **Caching** — frequently accessed data (user profiles, channel info)
+- **Rate limiting** — request throttling state
+
+Configured via `internal.kv` in your config:
+
+```json
+{
+  "internal": {
+    "kv": "redis://valkey:6379/0",
+    "kv_mode": "standalone"
+  }
+}
+```
+
+## Optional services
+
+### Meilisearch
+
+Provides full-text search for messages, users, and communities. Without it, search functionality is limited to basic database queries.
+
+```json
+{
+  "integrations": {
+    "search": {
+      "engine": "meilisearch",
+      "url": "http://meilisearch:7700",
+      "api_key": "your-master-key"
+    }
+  }
+}
+```
+
+### Elasticsearch
+
+Alternative to Meilisearch for larger deployments or when you need more advanced search features:
+
+```json
+{
+  "integrations": {
+    "search": {
+      "engine": "elasticsearch",
+      "url": "http://elasticsearch:9200"
+    }
+  }
+}
+```
+
+### LiveKit
+
+Handles voice and video calls, including screen sharing. See the [Voice setup](/self_hosting/voice) guide for full configuration.
+
+## Storage
+
+### SQLite (default)
+
+The database is stored as a single file, persisted via Docker volume:
+
+```json
+{
+  "database": {
+    "backend": "sqlite",
+    "sqlite_path": "./data/fluxer.db"
+  }
+}
+```
+
+### Media storage
+
+By default, uploaded files (avatars, attachments, etc.) are stored on the local filesystem inside the container's data volume. For production, you can configure S3-compatible storage:
+
+```json
+{
+  "s3": {
+    "access_key_id": "YOUR_KEY",
+    "secret_access_key": "YOUR_SECRET",
+    "endpoint": "https://s3.us-east-1.amazonaws.com"
+  }
+}
+```
+
+Compatible providers: AWS S3, MinIO, Cloudflare R2, Backblaze B2, DigitalOcean Spaces.
+
+## Network topology
+
+### Ports
+
+| Port | Protocol | Service | Exposure |
+|------|----------|---------|----------|
+| 8080 | TCP | fluxer_server (HTTP + WS) | Reverse proxy only |
+| 6379 | TCP | Valkey | Internal only |
+| 7700 | TCP | Meilisearch | Internal only |
+| 7880 | TCP | LiveKit API | Internal only |
+| 3478 | UDP | LiveKit TURN | Public (if voice enabled) |
+| 7881 | TCP | LiveKit ICE-TCP | Public (if voice enabled) |
+| 50000-50100 | UDP | LiveKit RTP media | Public (if voice enabled) |
+
+<Warning>
+  Never expose Valkey, Meilisearch, or LiveKit API ports directly to the internet. Only the reverse proxy (443) and LiveKit media ports (if using voice) should be publicly accessible.
+</Warning>
+
+## Scaling
+
+For small to medium instances (up to a few thousand users), the single-container architecture works well. For larger deployments:
+
+- Switch from SQLite to **Cassandra** for distributed storage
+- Use **Elasticsearch** instead of Meilisearch for heavier search loads
+- Deploy multiple `fluxer_server` replicas behind a load balancer
+- Use **S3** for media storage
+- Run a dedicated **LiveKit** cluster for voice/video

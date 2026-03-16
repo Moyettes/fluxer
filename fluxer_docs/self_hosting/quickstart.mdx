@@ -3,4 +3,248 @@ title: 'Quickstart'
 description: 'Get Fluxer running in minutes.'
 ---
 
-TBD
+This guide gets a Fluxer instance running with Docker Compose. You'll have a working instance in about 10 minutes.
+
+## Prerequisites
+
+- **Docker** 24+ and **Docker Compose** v2
+- A domain name pointing to your server (e.g. `chat.example.com`)
+- A reverse proxy with TLS termination (we'll show Caddy and nginx)
+
+## Step 1: Set up the project directory
+
+```bash
+mkdir -p /opt/fluxer/config
+cd /opt/fluxer
+```
+
+Download the Docker Compose file and production config template:
+
+```bash
+# Docker Compose file
+curl -O https://raw.githubusercontent.com/fluxerapp/fluxer/canary/compose.yaml
+
+# Production config template
+curl -o config/config.json \
+  https://raw.githubusercontent.com/fluxerapp/fluxer/canary/config/config.production.template.json
+```
+
+## Step 2: Generate secrets
+
+You'll need several 64-character hex secrets. Generate them with:
+
+```bash
+openssl rand -hex 32
+```
+
+For web push notifications, generate VAPID keys:
+
+```bash
+npx web-push generate-vapid-keys
+```
+
+## Step 3: Edit config/config.json
+
+Replace all placeholder values in your config file:
+
+```json
+{
+  "env": "production",
+  "domain": {
+    "base_domain": "chat.example.com",
+    "public_scheme": "https",
+    "public_port": 443
+  },
+  "database": {
+    "backend": "sqlite",
+    "sqlite_path": "./data/fluxer.db"
+  },
+  "internal": {
+    "kv": "redis://valkey:6379/0",
+    "kv_mode": "standalone"
+  },
+  "services": {
+    "server": { "port": 8080, "host": "0.0.0.0" },
+    "media_proxy": {
+      "secret_key": "REPLACE_WITH_GENERATED_SECRET"
+    },
+    "admin": {
+      "secret_key_base": "REPLACE_WITH_GENERATED_SECRET",
+      "oauth_client_secret": "REPLACE_WITH_GENERATED_SECRET"
+    },
+    "marketing": {
+      "enabled": false,
+      "secret_key_base": "REPLACE_WITH_GENERATED_SECRET"
+    },
+    "gateway": {
+      "port": 8082,
+      "admin_reload_secret": "REPLACE_WITH_GENERATED_SECRET",
+      "media_proxy_endpoint": "http://127.0.0.1:8080/media"
+    },
+    "nats": {
+      "core_url": "nats://nats:4222",
+      "jetstream_url": "nats://nats:4222",
+      "auth_token": "REPLACE_WITH_GENERATED_SECRET"
+    }
+  },
+  "auth": {
+    "sudo_mode_secret": "REPLACE_WITH_GENERATED_SECRET",
+    "connection_initiation_secret": "REPLACE_WITH_GENERATED_SECRET",
+    "vapid": {
+      "public_key": "REPLACE_WITH_VAPID_PUBLIC_KEY",
+      "private_key": "REPLACE_WITH_VAPID_PRIVATE_KEY"
+    }
+  },
+  "integrations": {
+    "search": {
+      "engine": "meilisearch",
+      "url": "http://meilisearch:7700",
+      "api_key": "REPLACE_WITH_MEILI_MASTER_KEY"
+    }
+  }
+}
+```
+
+<Warning>
+  Use a unique, randomly generated value for **every** secret field. Never reuse secrets across fields.
+</Warning>
+
+## Step 4: Set up a reverse proxy
+
+WebSocket support is required for the real-time gateway.
+
+<Tabs>
+  <Tab title="Caddy (recommended)">
+    Caddy handles TLS automatically via Let's Encrypt.
+
+    ```
+    # /opt/fluxer/Caddyfile
+    chat.example.com {
+        reverse_proxy localhost:8080
+    }
+    ```
+
+    Run Caddy:
+    ```bash
+    caddy run --config /opt/fluxer/Caddyfile
+    ```
+  </Tab>
+  <Tab title="nginx">
+    ```nginx
+    server {
+        listen 443 ssl http2;
+        server_name chat.example.com;
+
+        ssl_certificate     /etc/letsencrypt/live/chat.example.com/fullchain.pem;
+        ssl_certificate_key /etc/letsencrypt/live/chat.example.com/privkey.pem;
+
+        location / {
+            proxy_pass http://127.0.0.1:8080;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Step 5: Start the services
+
+```bash
+cd /opt/fluxer
+
+# Core only (Fluxer + Valkey)
+docker compose up -d
+
+# With search
+MEILI_MASTER_KEY=your-key docker compose --profile search up -d
+
+# With voice/video (configure livekit.yaml first — see Voice setup guide)
+docker compose --profile voice up -d
+
+# With everything
+MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
+```
+
+## Step 6: Verify
+
+```bash
+# Check all containers are healthy
+docker compose ps
+
+# Test the health endpoint
+curl -s http://localhost:8080/_health
+
+# Watch logs
+docker compose logs -f fluxer_server
+```
+
+Visit `https://chat.example.com` in your browser. You should see the Fluxer web client.
+
+**Register your first account** — it becomes the instance owner with full admin access.
+
+## Optional: Email
+
+To enable email verification and password resets, add SMTP configuration:
+
+```json
+{
+  "integrations": {
+    "email": {
+      "enabled": true,
+      "provider": "smtp",
+      "from_email": "noreply@chat.example.com",
+      "smtp": {
+        "host": "smtp.example.com",
+        "port": 587,
+        "username": "your-smtp-user",
+        "password": "your-smtp-password",
+        "secure": true
+      }
+    }
+  }
+}
+```
+
+## Optional: S3 storage
+
+For production deployments, configure S3-compatible storage instead of local filesystem:
+
+```json
+{
+  "s3": {
+    "access_key_id": "YOUR_ACCESS_KEY",
+    "secret_access_key": "YOUR_SECRET_KEY",
+    "endpoint": "https://s3.us-east-1.amazonaws.com"
+  }
+}
+```
+
+Works with AWS S3, MinIO, Cloudflare R2, Backblaze B2, and other S3-compatible providers.
+
+## Optional: CAPTCHA
+
+Prevent spam registrations with hCaptcha or Cloudflare Turnstile:
+
+```json
+{
+  "integrations": {
+    "captcha": {
+      "provider": "hcaptcha",
+      "site_key": "YOUR_SITE_KEY",
+      "secret_key": "YOUR_SECRET_KEY"
+    }
+  }
+}
+```
+
+## Next steps
+
+- [Voice setup](/self_hosting/voice) — enable voice & video calls
+- [Configuration reference](/self_hosting/configuration) — full config.json documentation
+- [Upgrading](/self_hosting/upgrading) — keep your instance up to date
