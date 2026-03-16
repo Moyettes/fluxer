@@ -91,16 +91,15 @@ This document outlines a comprehensive plan for self-hosting a Fluxer instance. 
 ### Step 1: Prepare the host
 
 ```bash
-# Create a directory for your Fluxer instance
+# Clone the repository
+git clone https://github.com/fluxerapp/fluxer.git
+cd fluxer
+
+# Create your instance directory with the needed files
 mkdir -p /opt/fluxer/config
+cp compose.yaml /opt/fluxer/
+cp config/config.production.template.json /opt/fluxer/config/config.json
 cd /opt/fluxer
-
-# Download the compose file
-curl -O https://raw.githubusercontent.com/fluxerapp/fluxer/canary/compose.yaml
-
-# Download the production config template
-curl -o config/config.json \
-  https://raw.githubusercontent.com/fluxerapp/fluxer/canary/config/config.production.template.json
 ```
 
 ### Step 2: Generate secrets
