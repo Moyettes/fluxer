@@ -96,7 +96,12 @@ for (const [k, v] of Object.entries(pkg.pnpm?.overrides || {})) {
   }
 }
 fs.writeFileSync("package.json", JSON.stringify(pkg, null, "\t") + "\n");
+console.log("Resolved overrides:", JSON.stringify(pkg.pnpm.overrides));
 RESOLVE_OVERRIDES
+
+RUN cat package.json | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).pnpm))"
+
+RUN node -e "const lock=require('fs').readFileSync('pnpm-lock.yaml','utf8'); const m=lock.match(/overrides:[\\s\\S]*?\\n\\n/); console.log(m?m[0]:'no overrides found')"
 
 RUN pnpm install --frozen-lockfile
 
