@@ -80,22 +80,41 @@ Add the `voice` section under `integrations` in your `config/config.json`:
 
 LiveKit requires several ports for media transport:
 
-```bash
-# TURN server (NAT traversal)
-sudo ufw allow 3478/udp
-
-# ICE-TCP fallback (for restrictive networks)
-sudo ufw allow 7881/tcp
-
-# RTP media ports
-sudo ufw allow 50000:50100/udp
-```
-
 | Port | Protocol | Purpose |
 |------|----------|---------|
 | 3478 | UDP | TURN server for NAT traversal |
 | 7881 | TCP | ICE-TCP fallback for clients behind strict firewalls |
 | 50000-50100 | UDP | RTP/RTCP media streams |
+
+<Tabs>
+  <Tab title="Linux (ufw)">
+    ```bash
+    # TURN server (NAT traversal)
+    sudo ufw allow 3478/udp
+
+    # ICE-TCP fallback (for restrictive networks)
+    sudo ufw allow 7881/tcp
+
+    # RTP media ports
+    sudo ufw allow 50000:50100/udp
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell, run as Administrator)">
+    ```powershell
+    # TURN server (NAT traversal)
+    New-NetFirewallRule -DisplayName "LiveKit TURN" -Direction Inbound -Protocol UDP -LocalPort 3478 -Action Allow
+
+    # ICE-TCP fallback (for restrictive networks)
+    New-NetFirewallRule -DisplayName "LiveKit ICE-TCP" -Direction Inbound -Protocol TCP -LocalPort 7881 -Action Allow
+
+    # RTP media ports
+    New-NetFirewallRule -DisplayName "LiveKit RTP Media" -Direction Inbound -Protocol UDP -LocalPort 50000-50100 -Action Allow
+    ```
+  </Tab>
+  <Tab title="macOS (pf)">
+    macOS doesn't block incoming connections by default when the firewall is off. If you have the firewall enabled, add the Docker Desktop app to the allowed applications in **System Settings > Network > Firewall > Options**.
+  </Tab>
+</Tabs>
 
 <Note>
   The LiveKit API port (7880) should **not** be exposed publicly. It's only accessed internally by `fluxer_server`.
@@ -103,16 +122,26 @@ sudo ufw allow 50000:50100/udp
 
 ## Step 5: Start with the voice profile
 
+From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
+
 ```bash
-cd /opt/fluxer
 docker compose --profile voice up -d
 ```
 
 Or if you're also using search:
 
-```bash
-MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
-```
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    $env:MEILI_MASTER_KEY="your-key"; docker compose --profile search --profile voice up -d
+    ```
+  </Tab>
+</Tabs>
 
 ## Step 6: Verify
 

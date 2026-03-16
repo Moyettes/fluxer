@@ -17,10 +17,12 @@ This document outlines a comprehensive plan for self-hosting a Fluxer instance. 
 | Network | 100 Mbps | 1 Gbps (especially if using voice/video) |
 
 ### Software
-- **Docker** 24+ and **Docker Compose** v2
+- **Docker Desktop** (Windows/macOS) or **Docker Engine** 24+ (Linux) with **Docker Compose** v2
 - A domain name with DNS control (e.g. `chat.example.com`)
 - A reverse proxy with TLS termination (Caddy, nginx, or Traefik)
 - (Optional) S3-compatible storage for large-scale media
+
+> **Windows users:** Install [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) with the WSL 2 backend. All `docker compose` commands work identically in PowerShell.
 
 ### Ports to open
 | Port | Protocol | Service | Required? |
@@ -90,6 +92,8 @@ This document outlines a comprehensive plan for self-hosting a Fluxer instance. 
 
 ### Step 1: Prepare the host
 
+**Linux / macOS:**
+
 ```bash
 # Clone the repository
 git clone https://github.com/fluxerapp/fluxer.git
@@ -102,15 +106,44 @@ cp config/config.production.template.json /opt/fluxer/config/config.json
 cd /opt/fluxer
 ```
 
+**Windows (PowerShell):**
+
+```powershell
+# Clone the repository
+git clone https://github.com/fluxerapp/fluxer.git
+cd fluxer
+
+# Create your instance directory with the needed files
+New-Item -ItemType Directory -Force -Path C:\fluxer\config
+Copy-Item compose.yaml C:\fluxer\
+Copy-Item config\config.production.template.json C:\fluxer\config\config.json
+cd C:\fluxer
+```
+
 ### Step 2: Generate secrets
 
 Generate all required secrets before editing config:
+
+**Linux / macOS:**
 
 ```bash
 # Generate 64-char hex secrets (run once per secret needed)
 openssl rand -hex 32
 
 # Generate VAPID keys for web push notifications
+npx web-push generate-vapid-keys
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Option 1: If OpenSSL is available (via Git for Windows)
+openssl rand -hex 32
+
+# Option 2: Native PowerShell
+-join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
+
+# VAPID keys (same on all platforms)
 npx web-push generate-vapid-keys
 ```
 
@@ -188,8 +221,9 @@ Edit the config file with your domain and secrets:
 
 **Option A: Caddy (recommended — automatic TLS)**
 
+Create a `Caddyfile` in your Fluxer directory (`/opt/fluxer/Caddyfile` on Linux, `C:\fluxer\Caddyfile` on Windows):
+
 ```
-# /opt/fluxer/Caddyfile
 chat.example.com {
     reverse_proxy fluxer_server:8080
 }
@@ -222,9 +256,11 @@ server {
 
 ### Step 5: Start the services
 
-```bash
-cd /opt/fluxer
+Navigate to your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
 
+**Linux / macOS:**
+
+```bash
 # Start core services (Fluxer + Valkey)
 docker compose up -d
 
@@ -236,6 +272,22 @@ docker compose --profile voice up -d
 
 # With everything
 MEILI_MASTER_KEY=<your-key> docker compose --profile search --profile voice up -d
+```
+
+**Windows (PowerShell):**
+
+```powershell
+# Start core services (Fluxer + Valkey)
+docker compose up -d
+
+# With search enabled
+$env:MEILI_MASTER_KEY="<your-key>"; docker compose --profile search up -d
+
+# With voice/video enabled (also configure livekit.yaml first)
+docker compose --profile voice up -d
+
+# With everything
+$env:MEILI_MASTER_KEY="<your-key>"; docker compose --profile search --profile voice up -d
 ```
 
 ### Step 6: Verify the deployment
@@ -303,15 +355,25 @@ room:
 
 ### Firewall rules for voice
 
+**Linux (ufw):**
+
 ```bash
 # TURN server (required for NAT traversal)
-ufw allow 3478/udp
+sudo ufw allow 3478/udp
 
 # ICE-TCP fallback
-ufw allow 7881/tcp
+sudo ufw allow 7881/tcp
 
 # RTP media ports
-ufw allow 50000:50100/udp
+sudo ufw allow 50000:50100/udp
+```
+
+**Windows (PowerShell, run as Administrator):**
+
+```powershell
+New-NetFirewallRule -DisplayName "LiveKit TURN" -Direction Inbound -Protocol UDP -LocalPort 3478 -Action Allow
+New-NetFirewallRule -DisplayName "LiveKit ICE-TCP" -Direction Inbound -Protocol TCP -LocalPort 7881 -Action Allow
+New-NetFirewallRule -DisplayName "LiveKit RTP Media" -Direction Inbound -Protocol UDP -LocalPort 50000-50100 -Action Allow
 ```
 
 ---
@@ -379,42 +441,63 @@ For a self-hosted MinIO instance, add it to your compose file:
 
 ### SQLite backup
 
+**Linux / macOS:**
+
 ```bash
-# Stop writes briefly and copy the database file
 docker compose exec fluxer_server sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
 docker compose cp fluxer_server:/tmp/backup.db ./backups/fluxer-$(date +%Y%m%d).db
+```
+
+**Windows (PowerShell):**
+
+```powershell
+docker compose exec fluxer_server sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+$date = Get-Date -Format "yyyyMMdd"
+New-Item -ItemType Directory -Force -Path backups
+docker compose cp fluxer_server:/tmp/backup.db "./backups/fluxer-$date.db"
 ```
 
 ### Valkey backup
 
 ```bash
-# Valkey is configured with AOF persistence; copy the dump
 docker compose exec valkey valkey-cli BGSAVE
 docker compose cp valkey:/data/dump.rdb ./backups/valkey-$(date +%Y%m%d).rdb
 ```
 
+On Windows, replace `$(date +%Y%m%d)` with `$(Get-Date -Format 'yyyyMMdd')`.
+
 ### Media files
 
 ```bash
-# If using local storage, back up the Docker volume
+# If using local storage, back up the Docker volume (Linux/macOS)
 docker run --rm -v fluxer_fluxer_data:/data -v $(pwd)/backups:/backup \
   alpine tar czf /backup/media-$(date +%Y%m%d).tar.gz -C /data .
 ```
 
-### Automate with cron
+### Automate backups
+
+**Linux / macOS (cron):**
 
 ```bash
 # /etc/cron.d/fluxer-backup
 0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
 ```
 
+**Windows (Task Scheduler, run as Administrator in PowerShell):**
+
+```powershell
+$action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File C:\fluxer\backup.ps1"
+$trigger = New-ScheduledTaskTrigger -Daily -At 3am
+Register-ScheduledTask -TaskName "FluxerBackup" -Action $action -Trigger $trigger -RunLevel Highest
+```
+
 ---
 
 ## 8. Upgrading
 
-```bash
-cd /opt/fluxer
+From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
 
+```bash
 # Pull latest images
 docker compose pull
 
@@ -425,6 +508,8 @@ docker compose up -d
 docker compose ps
 curl -s http://localhost:8080/_health
 ```
+
+On Windows, use `Invoke-WebRequest http://localhost:8080/_health` if curl is not available.
 
 > **Tip:** Pin to `stable` for production. Use `nightly` only for testing new features.
 

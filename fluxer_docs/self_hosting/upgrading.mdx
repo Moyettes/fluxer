@@ -11,23 +11,39 @@ description: 'Keep your Fluxer instance updated.'
 
 ### Quick backup
 
-```bash
-cd /opt/fluxer
+From your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows):
 
-# Backup the SQLite database
-docker compose exec fluxer_server \
-  sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
-docker compose cp fluxer_server:/tmp/backup.db ./backups/fluxer-$(date +%Y%m%d).db
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    # Backup the SQLite database
+    docker compose exec fluxer_server \
+      sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+    docker compose cp fluxer_server:/tmp/backup.db ./backups/fluxer-$(date +%Y%m%d).db
 
-# Backup config
-cp -r config/ backups/config-$(date +%Y%m%d)/
-```
+    # Backup config
+    cp -r config/ backups/config-$(date +%Y%m%d)/
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    # Backup the SQLite database
+    docker compose exec fluxer_server sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+    $date = Get-Date -Format "yyyyMMdd"
+    New-Item -ItemType Directory -Force -Path backups
+    docker compose cp fluxer_server:/tmp/backup.db "./backups/fluxer-$date.db"
+
+    # Backup config
+    Copy-Item -Recurse config "backups/config-$date"
+    ```
+  </Tab>
+</Tabs>
 
 ## Upgrading
 
-```bash
-cd /opt/fluxer
+From your Fluxer directory:
 
+```bash
 # Pull the latest images
 docker compose pull
 
@@ -38,6 +54,8 @@ docker compose up -d
 docker compose ps
 curl -s http://localhost:8080/_health
 ```
+
+On Windows, use `Invoke-WebRequest http://localhost:8080/_health` instead of `curl` if curl is not available.
 
 Database migrations run automatically on startup when needed.
 
@@ -56,32 +74,66 @@ image: ${FLUXER_SERVER_IMAGE:-ghcr.io/fluxerapp/fluxer-server:stable}
 
 To use nightly builds, set the environment variable:
 
-```bash
-FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:nightly docker compose up -d
-```
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:nightly docker compose up -d
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    $env:FLUXER_SERVER_IMAGE="ghcr.io/fluxerapp/fluxer-server:nightly"; docker compose up -d
+    ```
+  </Tab>
+</Tabs>
 
 ## Pinning to a specific version
 
 For maximum control, pin to a specific build number:
 
-```bash
-FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:build-123 docker compose up -d
-```
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:build-123 docker compose up -d
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    $env:FLUXER_SERVER_IMAGE="ghcr.io/fluxerapp/fluxer-server:build-123"; docker compose up -d
+    ```
+  </Tab>
+</Tabs>
 
 ## Rolling back
 
 If an upgrade causes issues:
 
-```bash
-# Stop the current version
-docker compose down
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    # Stop the current version
+    docker compose down
 
-# Restore your database backup
-cp backups/fluxer-YYYYMMDD.db data/fluxer.db
+    # Restore your database backup
+    cp backups/fluxer-YYYYMMDD.db data/fluxer.db
 
-# Start with the previous image
-FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:previous-tag docker compose up -d
-```
+    # Start with the previous image
+    FLUXER_SERVER_IMAGE=ghcr.io/fluxerapp/fluxer-server:previous-tag docker compose up -d
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    # Stop the current version
+    docker compose down
+
+    # Restore your database backup
+    Copy-Item backups\fluxer-YYYYMMDD.db data\fluxer.db
+
+    # Start with the previous image
+    $env:FLUXER_SERVER_IMAGE="ghcr.io/fluxerapp/fluxer-server:previous-tag"; docker compose up -d
+    ```
+  </Tab>
+</Tabs>
 
 ## Automating updates
 
@@ -102,41 +154,84 @@ docker run -d \
 
 ## Backup automation
 
-Set up a cron job for regular backups:
+<Tabs>
+  <Tab title="Linux / macOS (cron)">
+    Set up a cron job for regular backups:
 
-```bash
-# /etc/cron.d/fluxer-backup
-# Run daily at 3 AM
-0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
-```
+    ```bash
+    # /etc/cron.d/fluxer-backup
+    # Run daily at 3 AM
+    0 3 * * * root /opt/fluxer/backup.sh >> /var/log/fluxer-backup.log 2>&1
+    ```
 
-Example `backup.sh`:
+    Example `backup.sh`:
 
-```bash
-#!/bin/bash
-set -euo pipefail
+    ```bash
+    #!/bin/bash
+    set -euo pipefail
 
-BACKUP_DIR=/opt/fluxer/backups
-DATE=$(date +%Y%m%d)
+    BACKUP_DIR=/opt/fluxer/backups
+    DATE=$(date +%Y%m%d)
 
-mkdir -p "$BACKUP_DIR"
+    mkdir -p "$BACKUP_DIR"
 
-# SQLite backup
-docker compose -f /opt/fluxer/compose.yaml exec -T fluxer_server \
-  sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
-docker compose -f /opt/fluxer/compose.yaml cp fluxer_server:/tmp/backup.db "$BACKUP_DIR/fluxer-$DATE.db"
+    # SQLite backup
+    docker compose -f /opt/fluxer/compose.yaml exec -T fluxer_server \
+      sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+    docker compose -f /opt/fluxer/compose.yaml cp fluxer_server:/tmp/backup.db "$BACKUP_DIR/fluxer-$DATE.db"
 
-# Valkey backup
-docker compose -f /opt/fluxer/compose.yaml exec -T valkey valkey-cli BGSAVE
-sleep 2
-docker compose -f /opt/fluxer/compose.yaml cp valkey:/data/dump.rdb "$BACKUP_DIR/valkey-$DATE.rdb"
+    # Valkey backup
+    docker compose -f /opt/fluxer/compose.yaml exec -T valkey valkey-cli BGSAVE
+    sleep 2
+    docker compose -f /opt/fluxer/compose.yaml cp valkey:/data/dump.rdb "$BACKUP_DIR/valkey-$DATE.rdb"
 
-# Config backup
-cp -r /opt/fluxer/config "$BACKUP_DIR/config-$DATE"
+    # Config backup
+    cp -r /opt/fluxer/config "$BACKUP_DIR/config-$DATE"
 
-# Clean up backups older than 30 days
-find "$BACKUP_DIR" -type f -mtime +30 -delete
-find "$BACKUP_DIR" -type d -empty -mtime +30 -delete
+    # Clean up backups older than 30 days
+    find "$BACKUP_DIR" -type f -mtime +30 -delete
+    find "$BACKUP_DIR" -type d -empty -mtime +30 -delete
 
-echo "Backup completed: $DATE"
-```
+    echo "Backup completed: $DATE"
+    ```
+  </Tab>
+  <Tab title="Windows (Task Scheduler)">
+    Create a `backup.ps1` script in your Fluxer directory (e.g. `C:\fluxer\backup.ps1`):
+
+    ```powershell
+    $ErrorActionPreference = "Stop"
+
+    $BackupDir = "C:\fluxer\backups"
+    $Date = Get-Date -Format "yyyyMMdd"
+
+    New-Item -ItemType Directory -Force -Path $BackupDir | Out-Null
+
+    # SQLite backup
+    docker compose -f C:\fluxer\compose.yaml exec -T fluxer_server `
+      sqlite3 /usr/src/app/data/db/fluxer.db ".backup '/tmp/backup.db'"
+    docker compose -f C:\fluxer\compose.yaml cp fluxer_server:/tmp/backup.db "$BackupDir\fluxer-$Date.db"
+
+    # Valkey backup
+    docker compose -f C:\fluxer\compose.yaml exec -T valkey valkey-cli BGSAVE
+    Start-Sleep -Seconds 2
+    docker compose -f C:\fluxer\compose.yaml cp valkey:/data/dump.rdb "$BackupDir\valkey-$Date.rdb"
+
+    # Config backup
+    Copy-Item -Recurse C:\fluxer\config "$BackupDir\config-$Date"
+
+    # Clean up backups older than 30 days
+    Get-ChildItem $BackupDir -Recurse | Where-Object { $_.LastWriteTime -lt (Get-Date).AddDays(-30) } | Remove-Item -Force -Recurse
+
+    Write-Output "Backup completed: $Date"
+    ```
+
+    Schedule it with Task Scheduler:
+
+    ```powershell
+    # Run as Administrator
+    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-File C:\fluxer\backup.ps1"
+    $trigger = New-ScheduledTaskTrigger -Daily -At 3am
+    Register-ScheduledTask -TaskName "FluxerBackup" -Action $action -Trigger $trigger -RunLevel Highest
+    ```
+  </Tab>
+</Tabs>

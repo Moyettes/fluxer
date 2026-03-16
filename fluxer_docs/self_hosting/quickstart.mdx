@@ -7,31 +7,65 @@ This guide gets a Fluxer instance running with Docker Compose. You'll have a wor
 
 ## Prerequisites
 
-- **Docker** 24+ and **Docker Compose** v2
+- **Docker Desktop** (Windows/macOS) or **Docker Engine** 24+ (Linux) with **Docker Compose** v2
 - A domain name pointing to your server (e.g. `chat.example.com`)
 - A reverse proxy with TLS termination (we'll show Caddy and nginx)
 
 ## Step 1: Set up the project directory
 
-```bash
-# Clone the repository
-git clone https://github.com/fluxerapp/fluxer.git
-cd fluxer
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    # Clone the repository
+    git clone https://github.com/fluxerapp/fluxer.git
+    cd fluxer
 
-# Create your instance directory with the needed files
-mkdir -p /opt/fluxer/config
-cp compose.yaml /opt/fluxer/
-cp config/config.production.template.json /opt/fluxer/config/config.json
-cd /opt/fluxer
-```
+    # Create your instance directory with the needed files
+    mkdir -p /opt/fluxer/config
+    cp compose.yaml /opt/fluxer/
+    cp config/config.production.template.json /opt/fluxer/config/config.json
+    cd /opt/fluxer
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    # Clone the repository
+    git clone https://github.com/fluxerapp/fluxer.git
+    cd fluxer
+
+    # Create your instance directory with the needed files
+    New-Item -ItemType Directory -Force -Path C:\fluxer\config
+    Copy-Item compose.yaml C:\fluxer\
+    Copy-Item config\config.production.template.json C:\fluxer\config\config.json
+    cd C:\fluxer
+    ```
+
+    <Note>
+      On Windows, use [Docker Desktop](https://docs.docker.com/desktop/install/windows-install/) with the WSL 2 backend enabled. All `docker compose` commands work the same in PowerShell.
+    </Note>
+  </Tab>
+</Tabs>
 
 ## Step 2: Generate secrets
 
-You'll need several 64-character hex secrets. Generate them with:
+You'll need several 64-character hex secrets.
 
-```bash
-openssl rand -hex 32
-```
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    openssl rand -hex 32
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    # Option 1: If OpenSSL is installed (e.g. via Git for Windows)
+    openssl rand -hex 32
+
+    # Option 2: Native PowerShell
+    -join ((1..32) | ForEach-Object { '{0:x2}' -f (Get-Random -Maximum 256) })
+    ```
+  </Tab>
+</Tabs>
 
 For web push notifications, generate VAPID keys:
 
@@ -113,8 +147,9 @@ WebSocket support is required for the real-time gateway.
   <Tab title="Caddy (recommended)">
     Caddy handles TLS automatically via Let's Encrypt.
 
+    Create a `Caddyfile` in your Fluxer directory (`/opt/fluxer/Caddyfile` on Linux, `C:\fluxer\Caddyfile` on Windows):
+
     ```
-    # /opt/fluxer/Caddyfile
     chat.example.com {
         reverse_proxy localhost:8080
     }
@@ -122,7 +157,7 @@ WebSocket support is required for the real-time gateway.
 
     Run Caddy:
     ```bash
-    caddy run --config /opt/fluxer/Caddyfile
+    caddy run --config Caddyfile
     ```
   </Tab>
   <Tab title="nginx">
@@ -151,21 +186,40 @@ WebSocket support is required for the real-time gateway.
 
 ## Step 5: Start the services
 
-```bash
-cd /opt/fluxer
+Navigate to your Fluxer directory (`/opt/fluxer` on Linux, `C:\fluxer` on Windows) and run:
 
-# Core only (Fluxer + Valkey)
-docker compose up -d
+<Tabs>
+  <Tab title="Linux / macOS">
+    ```bash
+    # Core only (Fluxer + Valkey)
+    docker compose up -d
 
-# With search
-MEILI_MASTER_KEY=your-key docker compose --profile search up -d
+    # With search
+    MEILI_MASTER_KEY=your-key docker compose --profile search up -d
 
-# With voice/video (configure livekit.yaml first — see Voice setup guide)
-docker compose --profile voice up -d
+    # With voice/video (configure livekit.yaml first — see Voice setup guide)
+    docker compose --profile voice up -d
 
-# With everything
-MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
-```
+    # With everything
+    MEILI_MASTER_KEY=your-key docker compose --profile search --profile voice up -d
+    ```
+  </Tab>
+  <Tab title="Windows (PowerShell)">
+    ```powershell
+    # Core only (Fluxer + Valkey)
+    docker compose up -d
+
+    # With search
+    $env:MEILI_MASTER_KEY="your-key"; docker compose --profile search up -d
+
+    # With voice/video (configure livekit.yaml first — see Voice setup guide)
+    docker compose --profile voice up -d
+
+    # With everything
+    $env:MEILI_MASTER_KEY="your-key"; docker compose --profile search --profile voice up -d
+    ```
+  </Tab>
+</Tabs>
 
 ## Step 6: Verify
 
