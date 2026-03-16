@@ -81,27 +81,19 @@ COPY fluxer_marketing/package.json ./fluxer_marketing/
 COPY fluxer_media_proxy/package.json ./fluxer_media_proxy/
 COPY fluxer_relay_directory/package.json ./fluxer_relay_directory/
 
-# Resolve catalog: references in pnpm overrides to their actual versions from
-# pnpm-workspace.yaml, since pnpm --frozen-lockfile compares raw override values
-# against the resolved versions stored in the lockfile.
-RUN node << 'RESOLVE_OVERRIDES'
-const fs = require("fs");
-const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
-const ws = fs.readFileSync("pnpm-workspace.yaml", "utf8");
-for (const [k, v] of Object.entries(pkg.pnpm?.overrides || {})) {
-  if (v === "catalog:") {
-    const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const match = ws.match(new RegExp("['\"]?" + escaped + "['\"]?:\\s*(.+)"));
-    if (match) pkg.pnpm.overrides[k] = match[1].trim();
-  }
-}
-fs.writeFileSync("package.json", JSON.stringify(pkg, null, "\t") + "\n");
-console.log("Resolved overrides:", JSON.stringify(pkg.pnpm.overrides));
-RESOLVE_OVERRIDES
+# Debug: show pnpm config from package.json and lockfile overrides
+RUN echo "=== package.json pnpm section ===" && \
+    node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('package.json','utf8')).pnpm, null, 2))" && \
+    echo "=== lockfile overrides ===" && \
+    head -500 pnpm-lock.yaml | grep -A5 "^overrides:"
 
-RUN cat package.json | node -e "process.stdin.on('data',d=>console.log(JSON.parse(d).pnpm))"
-
-RUN node -e "const lock=require('fs').readFileSync('pnpm-lock.yaml','utf8'); const m=lock.match(/overrides:[\\s\\S]*?\\n\\n/); console.log(m?m[0]:'no overrides found')"
+# Resolve catalog: references in pnpm overrides to match the resolved versions
+# stored in the lockfile (pnpm --frozen-lockfile does a strict string comparison).
+RUN sed -i \
+    -e '/"@lingui\/swc-plugin"/ s/"catalog:"/"5.10.1"/' \
+    -e '/"@rspack\/cli"/ s/"catalog:"/"1.7.5"/' \
+    -e '/"@rspack\/core"/ s/"catalog:"/"1.7.5"/' \
+    package.json
 
 RUN pnpm install --frozen-lockfile
 
