@@ -25,7 +25,6 @@ COPY patches/ ./patches/
 
 COPY packages/admin/package.json ./packages/admin/
 COPY packages/api/package.json ./packages/api/
-COPY packages/app/package.json ./packages/app/
 COPY packages/cache/package.json ./packages/cache/
 COPY packages/captcha/package.json ./packages/captcha/
 COPY packages/cassandra/package.json ./packages/cassandra/
